@@ -1,0 +1,15 @@
+{
+  "dependencies": {
+    "node-telegram-bot-api": "^0.66.0"
+  },
+  "name": "sasha_bot",
+  "version": "1.0.0",
+  "main": "bot.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
