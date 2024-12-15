@@ -10,6 +10,7 @@ const bot = new TelegramBot(token, { polling: true });
 // Глобальные переменные для параметров
 let priceDifference, trackingPeriod, repeatFrequency;
 let isSessionActive = false;
+let socket = null;
 const trackedTokens = new Map();
 
 // Функция для получения исторической цены токена
@@ -41,7 +42,7 @@ bot.onText(/\/start/, (msg) => {
   console.log(`Получена команда /start от чата ${chatId}`);
 
   if (isSessionActive) {
-    bot.sendMessage(chatId, "Сессия уже активна. Завершите текущую настройку перед началом новой.");
+    bot.sendMessage(chatId, "Сессия уже активна. Используйте /stop для остановки.");
     console.log("Попытка повторного запуска при активной сессии.");
     return;
   }
@@ -64,7 +65,7 @@ bot.onText(/\/start/, (msg) => {
         console.log(`Установлена частота повторений: ${repeatFrequency} минут`);
         bot.sendMessage(chatId, "Настройка завершена! Ожидание обновлений...");
 
-        const socket = new WebSocket('wss://stream.binance.com:9443/ws/!ticker');
+        socket = new WebSocket('wss://stream.binance.com:9443/ws/!ticker');
 
         socket.on('open', () => {
           bot.sendMessage(chatId, "Соединение с Binance установлено!");
@@ -122,4 +123,19 @@ bot.onText(/\/start/, (msg) => {
       });
     });
   });
+});
+
+// Обработчик команды /stop
+bot.onText(/\/stop/, (msg) => {
+  const chatId = msg.chat.id;
+  if (!isSessionActive || !socket) {
+    bot.sendMessage(chatId, "Сессия уже остановлена или не запущена.");
+    return;
+  }
+
+  socket.close();
+  socket = null;
+  isSessionActive = false;
+  bot.sendMessage(chatId, "Сессия остановлена. Используйте /start для новой настройки.");
+  console.log("Сессия остановлена пользователем.");
 });
