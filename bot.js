@@ -12,6 +12,8 @@ let priceDifference, trackingPeriod, repeatFrequency;
 let isSessionActive = false;
 let socket = null;
 const trackedTokens = new Map();
+const AUTH_CODE = '123456';
+const authorizedUsers = new Set();
 
 // Функция для получения исторической цены токена
 async function getHistoricalPrice(symbol, minutesAgo) {
@@ -39,11 +41,24 @@ function getNextNotificationTime() {
 // Обработчик команды /start
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
+
+  if (!authorizedUsers.has(chatId)) {
+    bot.sendMessage(chatId, "Введите код авторизации:");
+    bot.once('message', (msg) => {
+      if (msg.text === AUTH_CODE) {
+        authorizedUsers.add(chatId);
+        bot.sendMessage(chatId, "Код принят! Используйте команду /start снова.");
+      } else {
+        bot.sendMessage(chatId, "Неверный код. Доступ запрещен.");
+      }
+    });
+    return;
+  }
+
   console.log(`Получена команда /start от чата ${chatId}`);
 
   if (isSessionActive) {
     bot.sendMessage(chatId, "Сессия уже активна. Используйте /stop для остановки.");
-    console.log("Попытка повторного запуска при активной сессии.");
     return;
   }
 
@@ -52,17 +67,14 @@ bot.onText(/\/start/, (msg) => {
 
   bot.once('message', (msg) => {
     priceDifference = parseFloat(msg.text);
-    console.log(`Установлена разница в цене: ${priceDifference}%`);
     bot.sendMessage(chatId, "Установите период отслеживания (в минутах):");
 
     bot.once('message', (msg) => {
       trackingPeriod = parseFloat(msg.text);
-      console.log(`Установлен период отслеживания: ${trackingPeriod} минут`);
       bot.sendMessage(chatId, "Установите частоту повторений оповещений (в минутах):");
 
       bot.once('message', async (msg) => {
         repeatFrequency = parseFloat(msg.text);
-        console.log(`Установлена частота повторений: ${repeatFrequency} минут`);
         bot.sendMessage(chatId, "Настройка завершена! Ожидание обновлений...");
 
         socket = new WebSocket('wss://stream.binance.com:9443/ws/!ticker');
@@ -78,7 +90,6 @@ bot.onText(/\/start/, (msg) => {
             if (ticker.s && ticker.s.endsWith('USDT')) {
               const token = ticker.s;
               const currentPrice = parseFloat(ticker.c);
-              console.log(`Получены данные: ${token} - Текущая цена: ${currentPrice}`);
 
               if (!trackedTokens.has(token)) {
                 const initialPrice = await getHistoricalPrice(token, trackingPeriod);
@@ -87,7 +98,6 @@ bot.onText(/\/start/, (msg) => {
                     initialPrice: initialPrice,
                     nextNotificationTime: 0,
                   });
-                  console.log(`Добавлен новый токен ${token} с исторической ценой ${initialPrice}`);
                 }
               }
 
@@ -97,7 +107,6 @@ bot.onText(/\/start/, (msg) => {
 
                 if (priceChange >= priceDifference && Date.now() >= tokenData.nextNotificationTime) {
                   bot.sendMessage(chatId, `Токен ${token} вырос на ${priceChange.toFixed(2)}%!`);
-                  console.log(`Отправлено сообщение: ${token} вырос на ${priceChange.toFixed(2)}%`);
                   trackedTokens.set(token, {
                     initialPrice: currentPrice, 
                     nextNotificationTime: getNextNotificationTime(),
@@ -108,12 +117,6 @@ bot.onText(/\/start/, (msg) => {
           } catch (error) {
             console.error(`Ошибка обработки данных: ${error.message}`);
           }
-        });
-
-        socket.on('close', () => {
-          bot.sendMessage(chatId, "Соединение с Binance закрыто.");
-          console.log("Соединение с Binance закрыто.");
-          isSessionActive = false;
         });
 
         socket.on('error', (error) => {
