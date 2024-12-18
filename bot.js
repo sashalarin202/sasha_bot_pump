@@ -4,7 +4,7 @@ const WebSocket = require('ws');
 const axios = require('axios');
 
 // Указываем токен бота (его нужно получить через BotFather)
-const token = '8087924083:AAEPsBIU4QEuW1hv2mQkc-b8EP7H8Qe0FL0';
+const token = '7563734754:AAFodzj0uwVJ-t5NkN5LQlBS_VlbqUFB1Lw';
 const bot = new TelegramBot(token, { polling: true });
 
 // Глобальные переменные для параметров
@@ -104,9 +104,16 @@ bot.onText(/\/start/, (msg) => {
               const tokenData = trackedTokens.get(token);
               if (tokenData) {
                 const priceChange = ((currentPrice - tokenData.initialPrice) / tokenData.initialPrice) * 100;
-
+                let action = '';
                 if (priceChange >= priceDifference && Date.now() >= tokenData.nextNotificationTime) {
-                  bot.sendMessage(chatId, `Токен ${token} вырос на ${priceChange.toFixed(2)}%!`);
+                  action = '🟢Long';
+                } else if (priceChange <= -priceDifference && Date.now() >= tokenData.nextNotificationTime) {
+                  action = '🔴Short';
+                }
+
+                if (action) {
+                  const message = `Binance\n${action} ${token}\nЦена ${currentPrice.toFixed(6)}\nПроцент изменился на ${priceChange.toFixed(2)}%\n[Перейти на Binance](https://www.binance.com/en/trade/${token})`;
+                  bot.sendMessage(chatId, message.replace(/\./g, '\\.'), { parse_mode: 'MarkdownV2' });
                   trackedTokens.set(token, {
                     initialPrice: currentPrice, 
                     nextNotificationTime: getNextNotificationTime(),
