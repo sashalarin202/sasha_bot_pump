@@ -113,7 +113,11 @@ bot.onText(/\/start/, (msg) => {
 
                 if (action) {
                   const message = `Binance\n${action} ${token}\nЦена ${currentPrice.toFixed(6)}\nПроцент изменился на ${priceChange.toFixed(2)}%\n[Перейти на Binance](https://www.binance.com/en/trade/${token})`;
-                  bot.sendMessage(chatId, message.replace(/\./g, '\\.'), { parse_mode: 'MarkdownV2' });
+                  bot.sendMessage(
+                    chatId, 
+                    message.replace(/\./g, '\\.').replace(/-/g, '\\-'), 
+                    { parse_mode: 'MarkdownV2' }
+                  );
                   trackedTokens.set(token, {
                     initialPrice: currentPrice, 
                     nextNotificationTime: getNextNotificationTime(),
