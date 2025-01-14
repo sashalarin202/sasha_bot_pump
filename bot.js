@@ -126,14 +126,65 @@ bot.onText(/\/start/, (msg) => {
 
       bot.once('message', (msg) => {
         repeatFrequency = parseFloat(msg.text);
-        bot.sendMessage(chatId, "Настройка завершена! Запускаю отслеживание...");
+        bot.sendMessage(chatId, "Настройка завершена! Ожидание обновлений...");
 
-        // Первое подключение без ожидания
-        connectToWebSocket(chatId);
+        socket = new WebSocket('wss://stream.binance.com:9443/ws/!ticker');
 
-        // Повторное выполнение через интервал
-        repeatInterval = setInterval(() => connectToWebSocket(chatId), repeatFrequency * 60000);
-        isSessionActive = true;
+        socket.on('open', () => {
+          bot.sendMessage(chatId, "Соединение с Binance установлено!");
+          console.log("Соединение с Binance установлено.");
+        });
+
+        socket.on('message', async (data) => {
+          try {
+            const ticker = JSON.parse(data);
+            if (ticker.s && ticker.s.endsWith('USDT')) {
+              const token = ticker.s;
+              const currentPrice = parseFloat(ticker.c);
+
+              if (!trackedTokens.has(token)) {
+                const initialPrice = await getHistoricalPrice(token, trackingPeriod);
+                if (initialPrice !== null) {
+                  trackedTokens.set(token, {
+                    initialPrice: initialPrice,
+                    nextNotificationTime: 0,
+                  });
+                }
+              }
+
+              const tokenData = trackedTokens.get(token);
+              if (tokenData) {
+                const priceChange = ((currentPrice - tokenData.initialPrice) / tokenData.initialPrice) * 100;
+                let action = '';
+                if (priceChange >= priceDifference && Date.now() >= tokenData.nextNotificationTime) {
+                  action = '🟢Long';
+                } else if (priceChange <= -priceDifference && Date.now() >= tokenData.nextNotificationTime) {
+                  action = '🔴Short';
+                }
+
+                if (action) {
+                  const message = `Binance\n${action} ${token}\nЦена ${currentPrice.toFixed(6)}\nПроцент изменился на ${priceChange.toFixed(2)}%\n[Перейти на Binance](https://www.binance.com/en/trade/${token})`;
+                  bot.sendMessage(
+                    chatId, 
+                    message.replace(/\./g, '\\.').replace(/-/g, '\\-'), 
+                    { parse_mode: 'MarkdownV2' }
+                  );
+                  trackedTokens.set(token, {
+                    initialPrice: currentPrice, 
+                    nextNotificationTime: getNextNotificationTime(),
+                  });
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`Ошибка обработки данных: ${error.message}`);
+          }
+        });
+
+        socket.on('error', (error) => {
+          bot.sendMessage(chatId, `Ошибка WebSocket: ${error.message}`);
+          console.error(`Ошибка WebSocket: ${error.message}`);
+        });
       });
     });
   });
