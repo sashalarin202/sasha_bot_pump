@@ -4,7 +4,8 @@ const WebSocket = require('ws');
 const axios = require('axios');
 
 // Указываем токен бота (его нужно получить через BotFather)
-const token = '';
+const token = '8087924083:AAEPsBIU4QEuW1hv2mQkc-b8EP7H8Qe0FL0';
+//8087924083:AAEPsBIU4QEuW1hv2mQkc-b8EP7H8Qe0FL0
 const bot = new TelegramBot(token, { polling: true });
 
 // Глобальные переменные для параметров
@@ -39,7 +40,6 @@ function connectToWebSocket(chatId) {
   trackedTokens.clear();
 
   socket.on('open', () => {
-    bot.sendMessage(chatId, "Соединение с Binance установлено!");
     console.log("Соединение с Binance установлено.");
   });
 
@@ -80,7 +80,6 @@ function connectToWebSocket(chatId) {
   });
 
   socket.on('close', () => {
-    bot.sendMessage(chatId, "Соединение закрыто.");
     console.log("Соединение WebSocket закрыто.");
   });
 
