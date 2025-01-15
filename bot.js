@@ -4,7 +4,7 @@ const WebSocket = require('ws');
 const axios = require('axios');
 
 // Указываем токен бота (его нужно получить через BotFather)
-const token = '8087924083:AAEPsBIU4QEuW1hv2mQkc-b8EP7H8Qe0FL0';
+const token = '';
 //8087924083:AAEPsBIU4QEuW1hv2mQkc-b8EP7H8Qe0FL0
 const bot = new TelegramBot(token, { polling: true });
 
@@ -12,6 +12,7 @@ const bot = new TelegramBot(token, { polling: true });
 let priceDifference, trackingPeriod, repeatFrequency;
 let isSessionActive = false;
 let repeatInterval = null;
+let activeSocket = null; // Хранение активного WebSocket
 const trackedTokens = new Map();
 const AUTH_CODE = '123456';
 const authorizedUsers = new Set();
@@ -36,14 +37,18 @@ async function getHistoricalPrice(symbol, minutesAgo) {
 
 // Функция подключения к WebSocket
 function connectToWebSocket(chatId) {
-  const socket = new WebSocket('wss://stream.binance.com:9443/ws/!ticker');
+  if (activeSocket) {
+    activeSocket.close();
+  }
+
+  activeSocket = new WebSocket('wss://stream.binance.com:9443/ws/!ticker');
   trackedTokens.clear();
 
-  socket.on('open', () => {
+  activeSocket.on('open', () => {
     console.log("Соединение с Binance установлено.");
   });
 
-  socket.on('message', async (data) => {
+  activeSocket.on('message', async (data) => {
     try {
       const ticker = JSON.parse(data);
       if (ticker.s && ticker.s.endsWith('USDT')) {
@@ -79,17 +84,14 @@ function connectToWebSocket(chatId) {
     }
   });
 
-  socket.on('close', () => {
+  activeSocket.on('close', () => {
     console.log("Соединение WebSocket закрыто.");
   });
 
-  socket.on('error', (error) => {
+  activeSocket.on('error', (error) => {
     bot.sendMessage(chatId, `Ошибка WebSocket: ${error.message}`);
     console.error(`Ошибка WebSocket: ${error.message}`);
   });
-
-  // Закрываем соединение перед следующим циклом
-  setTimeout(() => socket.close(), repeatFrequency * 60000 - 1000);
 }
 
 // Обработчик команды /start
@@ -143,13 +145,24 @@ bot.onText(/\/start/, (msg) => {
 // Обработчик команды /stop
 bot.onText(/\/stop/, (msg) => {
   const chatId = msg.chat.id;
+
   if (!isSessionActive) {
     bot.sendMessage(chatId, "Сессия уже остановлена или не запущена.");
     return;
   }
 
-  clearInterval(repeatInterval);
-  repeatInterval = null;
+  // Останавливаем интервал
+  if (repeatInterval) {
+    clearInterval(repeatInterval);
+    repeatInterval = null;
+  }
+
+  // Закрываем WebSocket
+  if (activeSocket) {
+    activeSocket.close();
+    activeSocket = null;
+  }
+
   isSessionActive = false;
   bot.sendMessage(chatId, "Сессия остановлена. Используйте /start для новой настройки.");
   console.log("Сессия остановлена пользователем.");
